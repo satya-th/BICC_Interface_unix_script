@@ -1,0 +1,66 @@
+<soapenv:Envelope xmlns:sch="http://xmlns.oracle.com/scheduler" xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:typ="http://xmlns.oracle.com/scheduler/types">
+   <soapenv:Header xmlns:wsa="http://www.w3.org/2005/08/addressing">
+       <wsse:Security soapenv:mustUnderstand="1" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+         <wsse:UsernameToken wsu:Id="UsernameToken-2EDFD1B89B8B325BFE16478839479747">
+            <wsse:Username>ORA_FA_USER</wsse:Username>
+            <wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText">ORA_FA_PWD</wsse:Password>
+         </wsse:UsernameToken>
+         <wsu:Timestamp wsu:Id="TS-2EDFD1B89B8B325BFE16478839182089">
+            <wsu:Created>ORA_FA_START_DATE_TIME</wsu:Created>
+            <wsu:Expires>ORA_FA_END_DATE_TIME</wsu:Expires>
+         </wsu:Timestamp>
+      </wsse:Security>
+      <wsa:MessageID>ORA_FA_MESSAGE_ID</wsa:MessageID>
+      <wsa:Action>submitRequest</wsa:Action>
+   </soapenv:Header>
+   <soapenv:Body>
+      <sch:submitRequest>
+         <sch:description>ORA_FA_JOB_DESC</sch:description>
+         <sch:jobDefinitionId>
+            <typ:name>BICloudConnectorJobDefinition</typ:name>
+            <typ:packageName>oracle.apps.ess.biccc</typ:packageName>
+            <typ:type>JOB_DEFINITION</typ:type>
+         </sch:jobDefinitionId>
+         <sch:application>oracle.biacm</sch:application>
+         <sch:requestedStartTime/>
+         <sch:requestParameters>
+            <typ:parameter>
+               <typ:dataType>STRING</typ:dataType>
+               <typ:name>SYS_className</typ:name>
+               <typ:scope/>
+               <typ:value>oracle.esshost.impl.CloudAdaptorJobImpl</typ:value>
+            </typ:parameter>
+            <typ:parameter>
+               <typ:dataType>STRING</typ:dataType>
+               <typ:name>SYS_requestCategory</typ:name>
+               <typ:scope/>
+               <typ:value>JobSchedule</typ:value>
+            </typ:parameter>
+            <typ:parameter>
+               <typ:dataType>STRING</typ:dataType>
+               <typ:name>SYS_application</typ:name>
+               <typ:scope/>
+               <typ:value>BI Cloud Adaptor</typ:value>
+            </typ:parameter>
+            <typ:parameter>
+               <typ:dataType>STRING</typ:dataType>
+               <typ:name>EXTRACT_JOB_TYPE</typ:name>
+               <typ:scope/>
+               <typ:value>VO_EXTRACT</typ:value>
+            </typ:parameter>
+            <typ:parameter>
+               <typ:dataType>LONG</typ:dataType>
+               <typ:name>JOB_ID</typ:name>
+               <typ:scope/>
+               <typ:value>ORA_FA_JOB_ID</typ:value>
+            </typ:parameter>
+            <typ:parameter>
+               <typ:dataType>STRING</typ:dataType>
+               <typ:name>EXTERNAL_STORAGE_LIST</typ:name>
+               <typ:scope/>
+               <typ:value>UCM</typ:value>
+            </typ:parameter>
+         </sch:requestParameters>
+      </sch:submitRequest>
+   </soapenv:Body>
+</soapenv:Envelope>

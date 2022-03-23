@@ -1,0 +1,416 @@
+#!/bin/ksh
+#
+#
+#********************************************************************************
+# 				Copyright 2012 (c) My Corporation
+#********************************************************************************
+# script:XXDL_BICC_IFACE
+# Script will be invoked by Oracle CP to Initiate BICC Interface to Oracle EBS
+# 
+#
+#
+#********************************************************************************
+#History:
+# ver   Date            Author			Modification
+# 1.0   03/22/2022      Satya           Initial Creation for POC.
+# 
+#
+#
+#
+#
+#
+#********************************************************************************
+# PARAMETER
+# ==========
+# Order from Oracle CM Job
+# ========================
+# $1 Thru $8 are standard Oracle Specific fields.
+# 
+# Main program begin
+#
+################################################################################
+#echo "Parameter from Console :"$1
+#. ~/.bash_profile
+
+REL="1.00"
+CURR_DIR=${INV_TOP}/bin
+
+log()
+{
+    echo `date +"%D %X : $1"`
+	date +"%D %X : *** Log *** : $1 ">>"$LOG_FILE"
+}
+
+init() {
+   echo "${1}"
+   PROG_NAME=`echo $1 | awk '{print $1}'`
+   FCP_REQID=`echo $1 | awk '{print $2}'|sed -e s/FCP_REQID=//`
+   FCP_LOGIN=`echo $1 | awk '{print $3}'|sed -e s/FCP_LOGIN=// | sed -e 's/\"//g'`
+   FCP_USERID=`echo $1 | awk '{print $4}'|sed -e s/FCP_USERID=//`
+   FCP_USERNAME=`echo $1 | awk '{print $5}'|sed -e s/FCP_USERNAME=// | sed -e 's/\"//g'`
+   FCP_PRINTER=`echo $1 | awk '{print $6}'|sed -e s/FCP_PRINTER=// | sed -e 's/\"//g'`
+   FCP_SAVE_OUT=`echo $1 | awk '{print $7}'|sed -e s/FCP_SAVE_OUT=// | sed -e 's/\"//g'`
+   FCP_NUM_COPIES=`echo $1 | awk '{print $8}' |sed -e s/FCP_NUM_COPIES=//`
+   
+   BICC_JOB_ID=`echo $1 | awk '{print $9}' | sed -e 's/\"//g'` 
+   
+   TIMESTAMP=`date +%d%m%Y%H%M%S`
+   BAR="-------------------------------------------------------------------------------------"
+   
+   META=${CURR_DIR}/bicc
+   WORK_DIR=${CURR_DIR}/bicc_iface/${FCP_REQID}
+   JOB_PAYLOAD=${META}/bicc_job_request.xml
+   JOB_WAIT_PAYLOAD=${META}/bicc_job_status.xml
+   FA_ENV=${META}/fa.env
+   FA_UCM_UTILITY=${CURR_DIR}/bicc/oracle.ucm.fa_client_11.1.1.jar
+   WAIT_TIME=15
+   
+   
+	if [ ! -d ${WORK_DIR} ]; then
+		mkdir ${WORK_DIR}
+		echo "Working Directory Created" ${WORK_DIR}
+	fi   
+   LOG_FILE=${WORK_DIR}/${FCP_REQID}-BICC_IFACE-${TIMESTAMP}.log
+   
+ 
+log ${BAR}
+log "				BICC Interface Framework				"
+log ${BAR}
+log "Program Start Date	:"${TIMESTAMP}
+log "Parameter List...."
+log "PROG_NAME       	:"${PROG_NAME}
+log "FCP_REQID       	:"${FCP_REQID}
+#echo "FCP_LOGIN       	:"${FCP_LOGIN}
+log "FCP_USERID      	:"${FCP_USERID}
+log "FCP_USERNAME    	:"${FCP_USERNAME}
+log "FCP_PRINTER     	:"${FCP_PRINTER}
+log "FCP_SAVE_OUT    	:"${FCP_SAVE_OUT}
+log "FCP_NUM_COPIES  	:"${FCP_NUM_COPIES}
+log "META			 	:"${META}
+log "CURR_DIR		 	:"${CURR_DIR}
+log "WORK_DIR		 	:"${WORK_DIR}
+log "LOG_FILE		 	:"${LOG_FILE}
+log "JOB_PAYLOAD	 	:"${JOB_PAYLOAD}
+log "JOB_WAIT_PAYLOAD	:"${JOB_WAIT_PAYLOAD}
+log "BICC_JOB_ID		:"${BICC_JOB_ID}
+log "FA_UCM_UTILITY		:"${FA_UCM_UTILITY}
+log "WAIT_TIME			:"${WAIT_TIME}
+log ${BAR}
+}
+#
+#End init_params
+#
+#######################################################################################
+#search_ucm:	This will search for a file in UCM
+#######################################################################################
+search_ucm(){
+   DOC_TITLE=${1}
+   log ${BAR}
+   #Check if UCM Web Content Transfer Utility is available
+   log "search_ucm : "${DOC_TITLE}
+   if [ ${DOC_TITLE} != "" ]; then
+		if [ -f "${FA_UCM_UTILITY}" ]; then
+			log "UCM Utility Found, Initiating Seach"
+			UCM_SRCH_RESULT=`java -jar "${FA_UCM_UTILITY}" SearchTool --url=${FA_URL}/cs/ --username=${FA_USER} --password="${FA_PWD}" --allDocs=true --dSecurityGroup="OBIAImport" --delimiter="," --defaultFields=false --fields=dID --dDocTitle="${DOC_TITLE}"`
+			log "UCM Search Results..."
+			log "${UCM_SRCH_RESULT}"
+			if [ "${UCM_SRCH_RESULT}" != "" ]; then
+				log "Create UCM Search Results Log file"
+				UCM_SRCH_LOG="${WORK_DIR}"/MANIFEST_UCM_SEARCH.log
+				touch "${UCM_SRCH_LOG}"
+				echo "${UCM_SRCH_RESULT}">>"${UCM_SRCH_LOG}"
+				log "UCM Search Result is not null, Extract the DocID"
+				UCM_DOCID=`echo "${UCM_SRCH_RESULT}" | awk -v "current=2" '{ if (NR == (5 + current)) print $0 }' | awk -F, '{print $1}'`
+				log "Manifest Doc ID: "${UCM_DOCID}
+				
+				if [ ${UCM_DOCID} != "" ]; then
+					log "UCM Doc ID is not null, Can start the download process"		
+					#download ${UCM_DOCID}
+					log "Download process Started for dID: "${UCM_DOCID}
+					java -jar "${FA_UCM_UTILITY}" DownloadTool --url=${FA_URL}/cs/ --username=${FA_USER} --password="${FA_PWD}" --dID=${UCM_DOCID} --outputDir="${WORK_DIR}"
+					log "Download Process Completed, Checking the results"
+					if [ -f "${WORK_DIR}"/"${DOC_TITLE}" ]; then
+						log "Downloaded File found, Reading for the data files"
+						
+						for a in `cat "${WORK_DIR}"/"${DOC_TITLE}" | awk '{ if (NR > 1) print $0}'`
+						do
+							DOC_NAME=`echo $a | awk -F\; '{print $1}'`
+							DOC_ID=`echo $a | awk -F\; '{print $2}'`
+							
+							log "UCM Data File Name 	: "${DOC_NAME}
+							log "UCM Documnet ID	: "${DOC_ID}
+							download ${DOC_ID} ${DOC_NAME}
+							
+						done
+						
+					log ${BAR}
+					log "Download Process Completed for the data files"
+						
+					fi 
+					
+				fi 
+			fi 
+			
+		fi
+   fi
+}
+#######################################################################################
+#download:	This will download a file froim UCM
+#######################################################################################
+download() {
+	log ${BAR}
+	dID=${1}
+	dNAME=${2}
+	
+	if [ ${dID} != "" ]; then
+		log "Downloading Data file for UCM Documnet ID : "${dID}
+		log "Downloading Data file for UCM Documnet Name : "${dNAME}
+		if [ -d "${WORK_DIR}"/datafiles ]; then
+			log "datafiles folder exists, Downloading file there"
+		else
+			mkdir "${WORK_DIR}"/datafiles
+			log "datafiles folder created, Downloading file there"
+		fi 
+		java -jar "${FA_UCM_UTILITY}" DownloadTool --url=${FA_URL}/cs/ --username=${FA_USER} --password="${FA_PWD}" --dID=${dID} --outputDir="${WORK_DIR}"/datafiles
+		
+		if [ -f "${WORK_DIR}"/datafiles/"${dNAME}" ]; then
+			log "File Downloaded successfully...."
+		else
+			log "File Donload failed, could not find the file in data files"
+		fi 
+		
+	fi
+}
+#######################################################################################
+#wait_for_job:	This will wait for the job to complete
+#######################################################################################
+wait_for_job() {
+	REQUEST=${1}
+	if [ ${REQUEST} != "" ]; then
+		log "Wait For Job Started for Request: "${REQUEST}
+		STATUS_CODE=0
+		STATUS=""
+		while [ ${STATUS_CODE} -lt 100 ]
+		do
+		  log ${BAR}
+		  log "Status: "${STATUS_CODE}
+		  sleep ${WAIT_TIME}
+		  #INVOKE STATUS CHECK WEB SERVICE
+		  STATUS_CHECK_PAYLOAD=`cat ${JOB_WAIT_PAYLOAD}`
+		  if [ "${STATUS_CHECK_PAYLOAD}" != "" ]; then
+				log "Job Status Check Payload is available, Replacing the Parameters"
+				START_DATE_TIME=`echo $(date '+%Y-%m-%dT%H:%M:%SZ' -u)`
+				END_DATE_TIME=`echo $(date '+%Y-%m-%dT%H:%M:%SZ' -u -d '20 mins')`			
+				STATUS_CHECK_PAYLOAD=`echo "${STATUS_CHECK_PAYLOAD}"|sed s/ORA_FA_USER/"${FA_USER}"/g`
+				STATUS_CHECK_PAYLOAD=`echo "${STATUS_CHECK_PAYLOAD}"|sed s/ORA_FA_PWD/"${FA_PWD}"/g`
+				STATUS_CHECK_PAYLOAD=`echo "${STATUS_CHECK_PAYLOAD}"|sed s/ORA_FA_START_DATE_TIME/"${START_DATE_TIME}"/g`
+				STATUS_CHECK_PAYLOAD=`echo "${STATUS_CHECK_PAYLOAD}"|sed s/ORA_FA_END_DATE_TIME/"${END_DATE_TIME}"/g`
+				STATUS_CHECK_PAYLOAD=`echo "${STATUS_CHECK_PAYLOAD}"|sed s/ORA_FA_MESSAGE_ID/"12RT76YU6"/g`
+				STATUS_CHECK_PAYLOAD=`echo "${STATUS_CHECK_PAYLOAD}"|sed s/ORA_FA_BICC_REQUEST/"${REQUEST}"/g`
+				log "${STATUS_CHECK_PAYLOAD}"
+				log "Creating Job Status Check Payload File"
+				
+					if [ -f ${WORK_DIR}/BICC_JOB_STATUS_CHECK_PAYLOAD.xml ]; then
+						log "BICC Job Status CHeck Payload File exists, Hence not creating agaian"
+					else
+						touch ${WORK_DIR}/BICC_JOB_STATUS_CHECK_PAYLOAD.xml
+						echo ${STATUS_CHECK_PAYLOAD}>>${WORK_DIR}/BICC_JOB_STATUS_CHECK_PAYLOAD.xml	
+						log "Job Status Check Payload File Created"
+						log "${STATUS_CHECK_PAYLOAD}"
+					fi 
+				
+				log "Invoke Webservice to check the status."
+				STATUS_CHECK_RESPONSE=`curl -i -o - --silent -H "Content-Type: text/xml; charset=utf-8" -d "${STATUS_CHECK_PAYLOAD}" "${FA_URL}"/bi/ess/esswebservice`
+				log "Web Service Invoked, Checking the Status"
+				STATUS_HTTP_STATUS=`echo "${STATUS_CHECK_RESPONSE}"|grep HTTP|tail -1|awk '{print $2}'`
+				log "HTTP Status is	:"${STATUS_HTTP_STATUS}
+				log "${STATUS_CHECK_RESPONSE}"
+				log "Webservice Return Status Code: "${STATUS_HTTP_STATUS}
+				
+					if [ ${STATUS_HTTP_STATUS} == "200" ]; then
+						log "${STATUS_CHECK_RESPONSE}"
+						log "Webservice Invoked Successfully and Received 200 Response Code"
+						log "Extracting Status form the Response"
+						STATUS=`echo "$STATUS_CHECK_RESPONSE"|grep -o "<state.*</state>"|awk -F "[><]" '/state/{print $3}'`
+						log "BICC JOB STATUS	:"${STATUS}				
+					else
+						log "Webservice Call Failed, Please check the logs."
+						exit 1			
+					fi
+				
+					if [ ${STATUS} != "RUNNING" ]; then
+						if [ ${STATUS} == "SUCCEEDED" ]; then 
+							log ${BAR}
+							log "Job Completed Successfully, Buildimng the Manifest file and searching for it UCM"
+							MANIFEST_FILE="MANIFEST_DATA_"${BICC_JOB_ID}"-SCHEDULE_"${REQUEST}"_REQUEST_"${REQUEST}".MF"
+							log "BICC JOB Completed, Manifest File to be checked: "${MANIFEST_FILE}
+							log ${BAR}
+							if [ ${MANIFEST_FILE} != "" ]; then
+								log "Manifest File name is not null, Can seach UCM for dID"
+								
+							fi 
+							
+							STATUS_CODE=120
+						elif [ ${STATUS} == "ERROR" ]; then 
+							log "BICC Job Completed in Error, Hence exiting the process"
+							STATUS_CODE=110
+						elif [ ${STATUS} == "WAIT" ]; then 
+							log "STATUS: "${STATUS}
+							STATUS_CODE=90
+						elif [ ${STATUS} == "READY" ]; then 
+							log "STATUS: "${STATUS}
+							STATUS_CODE=90
+						else
+							STATUS_CODE=110
+						fi 
+					else
+						STATUS_CODE=90		  
+					fi
+			  
+					log "Status: "${STATUS_CODE}
+					if [ ${STATUS_CODE} -lt 100 ]; then 
+						log "BICC Job Request still RUNNING."		  
+					fi
+			else
+				log "Job Status CHeck Payload is Null..."
+				exit 1		  
+			fi
+		  #STATUS="SUCCEEDED"
+		done
+		
+		if [ ${STATUS_CODE} -eq 120 ]; then
+			search_ucm ${MANIFEST_FILE}
+		fi 
+		
+		log "BICC Job Completed, Extract Files are downloaded successfully"
+		
+		
+	fi
+}
+
+
+#######################################################################################
+#launch_job:	This will launch job in BICC
+#######################################################################################
+launch_job() {
+#Check if Working Dir and Log file available
+#Get FA details form DB
+#Validate if Payload job XML file exists
+#if Everything looks OK, Then launch job using curl
+
+
+#House Keeping Check
+	if [ -d ${WORK_DIR} ]; then
+		log "Working Directory exists " ${WORK_DIR}
+	else
+		mkdir ${WORK_DIR}
+		log "Working Directory Created" ${WORK_DIR}
+	fi
+		
+	if [ -f ${LOG_FILE} ]; then
+		log "Log File exists " ${LOG_FILE}
+	else
+		touch ${LOG_FILE}
+		log "Log File Created" ${LOG_FILE}
+	fi
+
+	if [ -d ${META} ]; then
+		log "Working Directory exists " ${WORK_DIR}
+	else
+		log "Could not find META directory, Exiting...."
+		exit 1
+	fi
+
+	if [ -f ${JOB_PAYLOAD} ]; then
+		log "Job Launch Payload file exists."
+	else
+		log "Job Launch Payload file not found, Please verify"
+		exit 1
+	fi
+
+	if [ -f ${JOB_WAIT_PAYLOAD} ]; then
+		log "Wait for Job Payload file exists."
+	else
+		log "Wait for Job Payload file not found, Please verify"
+		exit 1
+	fi
+	
+	if [ -f ${FA_UCM_UTILITY} ]; then
+		log "Fusion UCM Utility Found"
+	else
+		log "Fusion Utility not Found, Please cehck"
+		exit 1
+	fi
+
+
+
+
+if [ -f ${FA_ENV} ]; then
+	log "Fusion Environment file found"
+	source ${FA_ENV}
+	log "Fusion Environment file Sourcing Completed"
+	log "FA_URL			:"${FA_URL}
+	log "FA_USER		:"${FA_USER}
+	log "FA_PASSWORD	:"${FA_PWD}
+	log "FA_TZ			:"${FA_TZ}
+fi
+
+	if [[ ${FA_URL} != ""  && ${FA_USER} != "" && ${FA_PWD} != "" && ${FA_TZ} != "" ]]; then 
+		log ${BAR}
+		log "looks good to trigger BICC JOB"		
+		PAYLOAD=`cat ${JOB_PAYLOAD}`
+		#echo ${PAYLOAD}
+		if [ "${PAYLOAD}" != "" ]; then 
+			log "Payload is not null, Replacing Parameters"
+			if [ ${BICC_JOB_ID} == "" ]; then
+				log "BICC JOb ID is null, Hence Defaulting to 1"
+				BICC_JOB_ID="1"
+			fi 
+			START_DATE_TIME=`echo $(date '+%Y-%m-%dT%H:%M:%SZ' -u)`
+			END_DATE_TIME=`echo $(date '+%Y-%m-%dT%H:%M:%SZ' -u -d '20 mins')`			
+			PAYLOAD=`echo "${PAYLOAD}"|sed s/ORA_FA_USER/"${FA_USER}"/g`
+			PAYLOAD=`echo "${PAYLOAD}"|sed s/ORA_FA_PWD/"${FA_PWD}"/g`
+			PAYLOAD=`echo "${PAYLOAD}"|sed s/ORA_FA_START_DATE_TIME/"${START_DATE_TIME}"/g`
+			PAYLOAD=`echo "${PAYLOAD}"|sed s/ORA_FA_END_DATE_TIME/"${END_DATE_TIME}"/g`
+			PAYLOAD=`echo "${PAYLOAD}"|sed s/ORA_FA_MESSAGE_ID/"12QW525WEDC"/g`
+			PAYLOAD=`echo "${PAYLOAD}"|sed s/ORA_FA_JOB_ID/"${BICC_JOB_ID}"/g`	
+			PAYLOAD=`echo "${PAYLOAD}"|sed s/ORA_FA_JOB_DESC/"BICC Job Request From EBS - "${FCP_REQID}/g`
+			log "${PAYLOAD}"
+			log "Creating Payload File"
+			touch ${WORK_DIR}/BICC_JOB_PAYLOAD.xml
+			echo "$PAYLOAD">>${WORK_DIR}/BICC_JOB_PAYLOAD.xml	
+			log ${BAR}
+			log "Lets Use CURL to sent the Request..."
+			RESPONSE=`curl -i -o - --silent -H "Content-Type: text/xml; charset=utf-8" -d "${PAYLOAD}" "${FA_URL}"/bi/ess/esswebservice`
+			log "Web Service Invoked, Checking the Status"
+			HTTP_STATUS=`echo "${RESPONSE}"|grep HTTP|tail -1|awk '{print $2}'`
+			log "HTTP Status is	:"${HTTP_STATUS}
+			log "${RESPONSE}"
+			log "${HTTP_STATUS}"
+			
+			if [ ${HTTP_STATUS} == "200" ]; then
+				log "${RESPONSE}"
+				log "Webservice Invoked Successfully and Received 200 Response Code"
+				log "Extracting Request ID form the Response"
+				BICC_REQUEST=`echo "$RESPONSE"|grep -o "<requestId.*</requestId>"|awk -F "[><]" '/requestId/{print $3}'`
+				log "BICC JOB Request ID	:"${BICC_REQUEST}
+				log ${BAR}
+				wait_for_job ${BICC_REQUEST}
+			else
+				log "Webservice Call Failed, Please check the logs."
+				exit 1			
+			fi
+			
+		log "Process Completed successfully...."
+			
+		fi
+	else
+		log "Fusion Enviornmnet Details are missing, Please verify"
+		exit 1
+	fi
+}
+#######################################################################################
+#Main:	Executing the shell script
+#######################################################################################
+init "$1"
+launch_job
