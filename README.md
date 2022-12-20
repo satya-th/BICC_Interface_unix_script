@@ -37,6 +37,6 @@ download()
 # Dependencies
 
 - CURL utility to invoke Fusion Webservices
-- Oracle Fusion WebCenter Content Document Transfer Utility
+- Oracle Fusion WebCenter Content Document Transfer Utility, Please Read below
   - Oracle WebCenter Content (WCC) Document Transfer Utility Readme File (Doc ID 1624063.1)
 
